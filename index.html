@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <title>Acme Note-taker</title>
+    <meta name="description" content="">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" href="styles.css">
+    <script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/6.26.0/babel.js"></script>
+    <script crossorigin src="https://unpkg.com/react@16/umd/react.development.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@16/umd/react-dom.development.js"></script>
+    <script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/axios/0.19.0/axios.js"></script>
+    <script crossorigin
+        src="https://cdnjs.cloudflare.com/ajax/libs/react-router-dom/5.1.2/react-router-dom.js"></script>
+</head>
+
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel" async defer>
+        const { HashRouter, Link, Route, Switch, Redirect } = ReactRouterDOM;
+        const { Component } = React;
+        const root = document.querySelector('#root');
+
+        const Notes = () => {
+            return (
+                <div>Notes
+                </div>
+            )
+        }
+
+        const Archives = () => {
+            return (
+                <div>Archives
+                </div>
+            )
+        }
+
+        
+
+        class Create extends Component {
+            constructor(){
+                super();
+                this.state = {
+                    item:'',
+                }
+            }
+
+            handleChange = (ev) => {
+                this.setState({item:ev.target.value});
+                //console.log(this.state.item)
+                
+            }
+
+            handleSubmit = (ev) => {
+               
+                console.log(this.props.id)
+                //user notes can only take 5 at max!!!
+                axios.post(`https://acme-users-api-rev.herokuapp.com/api/users/${this.props.id}/notes`,{
+                    id:'5',
+                    archived:false,
+                    text:this.state.item,
+                    createdAt:'',
+                    updatedAt:'',
+                    userId:this.props.id,
+
+                })
+                .then(data => console.log(data.data))
+                .catch(error => console.log('error'))
+                ev.preventDefault();
+            }
+
+
+            render(){
+                return (
+                <form onSubmit = {this.handleSubmit}>
+                    <label>Create a note</label>
+                    <input type='text' value={this.state.item} onChange={this.handleChange}></input>
+                    <button>Create</button>
+                </form>
+            )
+            }
+           
+        }
+
+        class App extends Component{
+            constructor(){
+                super();
+                this.state = {
+                    user:'',
+                    note:[],
+                    archives:[],
+                    create:[],
+                }
+            }
+
+            componentDidMount(){
+                const API = 'https://acme-users-api-rev.herokuapp.com/api';
+                const fetchUser = async ()=> {
+                const storage = window.localStorage;
+                const userId = storage.getItem('userId'); 
+                if(userId){
+                try {
+                return (await axios.get(`${API}/users/detail/${userId}`)).data;
+                        }
+                catch(ex){
+                storage.removeItem('userId');
+                return fetchUser();
+                        }
+                    }
+                const user = (await axios.get(`${API}/users/random`)).data;
+                storage.setItem('userId', user.id);
+                return  user;
+                    };
+
+                fetchUser()
+                .then(userData => {
+                    this.setState({ user: userData });
+                    //console.log(data);
+                    axios.get(`${API}/users/${userData.id}/notes`)
+                    .then(
+                        noteData => {
+                            //console.log(noteData.data);
+                            this.setState({note: noteData.data});
+                        }
+                    )
+                })
+                
+            }
+
+            render(){
+                return (
+                    <HashRouter>
+                        <Route render={({ location }) => <Nav path={location.pathname} notes={this.state.note} archives={this.state.archives} create={this.state.create}/>} />
+                        
+                            <Route exact path='/notes' component={ Notes } />
+                            <Route exact path='/archives' component={ Archives } />
+                            <Route exact path='/create' render={({}) => <Create id={this.state.user.id} />} />            
+                        
+                    </HashRouter>
+                
+                )
+            }
+        }
+
+        class Nav extends Component{
+            constructor(props){
+                super(props)
+            }
+
+            render() {
+                console.log(this.props)
+                
+                return (
+                <nav>
+                    <Link to='/notes' className={ this.props.path === '/notes' ? 'tab-selected' : 'tab'}>Notes {this.props.notes.length}</Link>
+                    <Link to='/archives' className={ this.props.path === '/archives' ? 'tab-selected' : 'tab'}>Archives {this.props.archives.length}</Link>
+                    <Link to='/create' className={ this.props.path === '/create' ? 'tab-selected' : 'tsab'}>Create {this.props.create.length}</Link>
+                </nav>
+                )
+            }
+        }        
+        
+        ReactDOM.render(React.createElement(App), root);
+        </script>
+</body>
+
+</html>
