@@ -6,7 +6,6 @@
     <title>Acme Note-taker</title>
     <meta name="description" content="">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <link rel="stylesheet" href="styles.css">
     <script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/6.26.0/babel.js"></script>
     <script crossorigin src="https://unpkg.com/react@16/umd/react.development.js"></script>
     <script crossorigin src="https://unpkg.com/react-dom@16/umd/react-dom.development.js"></script>
@@ -19,21 +18,59 @@
     <div id="root"></div>
 
     <script type="text/babel" async defer>
-        const { HashRouter, Link, Route, Switch, Redirect } = ReactRouterDOM;
+        const { HashRouter, Link, Route, Switch, Redirect, BrowserRouter } = ReactRouterDOM;
         const { Component } = React;
         const root = document.querySelector('#root');
 
-        const Notes = () => {
+        const Notes = ({notes,deleteNote,archiveNote}) => {
+
             return (
-                <div>Notes
-                </div>
+                <ul>
+                    {
+                       notes.map(({text, id, archived},idx)=>{
+                           return(
+                               <li key={idx} >
+                                <form id={id} onSubmit={(e)=>{deleteNote(e)}}>
+                                {text}
+                                <button value='delete' type='submit'>
+                                    delete
+                                </button>
+                                {
+                                    archived
+                                    ?
+                                    <span>already archived</span>
+                                    :
+                                    <button value={id}type="button" onClick={(e)=>{archiveNote(e)}}>
+                                    archive
+                                </button>
+                                }
+                                </form>
+                                </li>
+                           )
+                       })
+                    }
+                </ul>
             )
         }
 
-        const Archives = () => {
+        const Archives = ({archives,deleteNote}) => {
             return (
-                <div>Archives
-                </div>
+                <ul>
+                    {
+                    archives.map(({text, id},idx)=>{
+                        return(
+                            <li key={idx} >
+                                <form id={id} onSubmit={(e)=>{deleteNote(e)}}>
+                                {text}
+                                <button value='delete' type='submit'>
+                                    delete
+                                </button>
+                                </form>
+                            </li>
+                        )
+                    })
+                    }
+                </ul>
             )
         }
 
@@ -47,34 +84,18 @@
                 }
             }
 
-            handleChange = (ev) => {
-                this.setState({item:ev.target.value});
-                //console.log(this.state.item)
-                
+            handleChange = (e) => {
+                this.setState({item:e.target.value});
             }
 
-            handleSubmit = (ev) => {
-               
-                console.log(this.props.id)
-                //user notes can only take 5 at max!!!
-                axios.post(`https://acme-users-api-rev.herokuapp.com/api/users/${this.props.id}/notes`,{
-                    id:'5',
-                    archived:false,
-                    text:this.state.item,
-                    createdAt:'',
-                    updatedAt:'',
-                    userId:this.props.id,
-
-                })
-                .then(data => console.log(data.data))
-                .catch(error => console.log('error'))
-                ev.preventDefault();
+            submitChange = (e,message) => {
+                this.props.addNote(e,this.state.item)
+                this.setState({item:''})
             }
-
 
             render(){
                 return (
-                <form onSubmit = {this.handleSubmit}>
+                <form onSubmit = {this.submitChange}>
                     <label>Create a note</label>
                     <input type='text' value={this.state.item} onChange={this.handleChange}></input>
                     <button>Create</button>
@@ -90,8 +111,7 @@
                 this.state = {
                     user:'',
                     note:[],
-                    archives:[],
-                    create:[],
+                    archives:[]
                 }
             }
 
@@ -117,11 +137,9 @@
                 fetchUser()
                 .then(userData => {
                     this.setState({ user: userData });
-                    //console.log(data);
                     axios.get(`${API}/users/${userData.id}/notes`)
                     .then(
                         noteData => {
-                            //console.log(noteData.data);
                             this.setState({note: noteData.data});
                         }
                     )
@@ -129,14 +147,69 @@
                 
             }
 
+            removeFromArchive = (e) => {
+                let archiveRemain = this.state.archives.filter(({id})=>e.target.id!=id)
+                this.setState({archives:[...archiveRemain]})
+                let selectNote = this.state.note.reduce((acc,val)=>{
+                        if(val.id===e.target.id){
+                            val.archived = false
+                        }
+                        return acc
+                },[])
+                e.preventDefault();
+            }
+
+            removeNote = (e) =>{    
+                axios.delete(`https://acme-users-api-rev.herokuapp.com/api/users/${this.state.user.id}/notes/${e.target.id}`)
+                .then(data=> {axios.get(`https://acme-users-api-rev.herokuapp.com/api/users/${this.state.user.id}/notes`)
+                    .then(noteData => this.setState({note: noteData.data}))})
+                }
+
+            addNote = (e,message) => {
+                
+                //user notes can only take 5 at max!!!
+                axios.post(`https://acme-users-api-rev.herokuapp.com/api/users/${this.state.user.id}/notes`,{
+                    id:'5',
+                    archived:false,
+                    text:message,
+                    createdAt:'',
+                    updatedAt:'',
+                    userId:this.props.id,
+
+                })
+                .then(data=> {axios.get(`https://acme-users-api-rev.herokuapp.com/api/users/${this.state.user.id}/notes`)
+                    .then(noteData => this.setState({note: noteData.data}))})
+                .catch(error => console.log('error'))
+                e.preventDefault();
+            }
+
+            archiveNote = (e) =>{
+                const selectedNote = this.state.note.filter(note=>note.id===e.target.value)
+                selectedNote[0].archived = true
+                if(!this.noteInArchive(selectedNote[0])){
+                    this.setState({archives:[...this.state.archives,selectedNote[0]]})
+                }
+            }
+
+            noteInArchive = (note) => {
+                const test = this.state.archives.reduce((acc,{id})=>{
+                    if(id===note.id){
+                        acc = true
+                    }
+                    return acc
+                },false)
+                return test
+            }
+            
+
             render(){
                 return (
                     <HashRouter>
-                        <Route render={({ location }) => <Nav path={location.pathname} notes={this.state.note} archives={this.state.archives} create={this.state.create}/>} />
+                        <Route render={({ location }) => <Nav path={location.pathname} notes={this.state.note} archives={this.state.archives} />} />
                         
-                            <Route exact path='/notes' component={ Notes } />
-                            <Route exact path='/archives' component={ Archives } />
-                            <Route exact path='/create' render={({}) => <Create id={this.state.user.id} />} />            
+                            <Route exact path='/notes' render={()=><Notes notes={this.state.note} deleteNote={(e)=>{this.removeNote(e)}} archiveNote={(e)=>{this.archiveNote(e)}}/>} />
+                            <Route exact path='/archives' render={()=><Archives deleteNote={(e)=>{this.removeFromArchive(e)}} archives={this.state.archives}/>}/>
+                            <Route exact path='/create' render={() => <Create id={this.state.user.id} addNote={(e,message)=>{this.addNote(e,message)}}/>} />            
                         
                     </HashRouter>
                 
@@ -150,13 +223,12 @@
             }
 
             render() {
-                console.log(this.props)
-                
+
                 return (
                 <nav>
                     <Link to='/notes' className={ this.props.path === '/notes' ? 'tab-selected' : 'tab'}>Notes {this.props.notes.length}</Link>
                     <Link to='/archives' className={ this.props.path === '/archives' ? 'tab-selected' : 'tab'}>Archives {this.props.archives.length}</Link>
-                    <Link to='/create' className={ this.props.path === '/create' ? 'tab-selected' : 'tsab'}>Create {this.props.create.length}</Link>
+                    <Link to='/create' className={ this.props.path === '/create' ? 'tab-selected' : 'tsab'}>Create</Link>
                 </nav>
                 )
             }
